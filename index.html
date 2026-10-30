@@ -635,14 +635,15 @@ function personSheet(){
   var s=V.sheet,lent=s.dir==='lent',es=personLoans(s.dir,s.person),rem=round2(es.reduce(function(a,l){return a+loanRem(l);},0)),td=today();
   var rows=es.map(function(l){
     var r=loanRem(l),over=l.due&&l.due<td&&r>0.01;
-    var hist=(l.pays||[]).map(function(p){return '<br>'+(lent?'Received ':'Paid ')+money(p.amt)+' on '+esc(dshort(p.date))+(p.acc?' · '+esc(accName(p.acc)):'');}).join('');
+    var hist=(l.pays||[]).map(function(p){return '<br>'+(lent?'Received ':'Paid ')+money(p.amt)+' on '+esc(dshort(p.date))+(p.acc?' · '+esc(accName(p.acc)):'')+' <button type="button" style="font-weight:700;text-decoration:underline;color:var(--expense)" data-act="paydel" data-l="'+l.id+'" data-p="'+p.id+'">'+(V.confirm===p.id?'Sure?':'Remove')+'</button>';}).join('');
     return '<div class="row"><i class="dot" style="background:'+(r>0.01?(lent?'var(--income)':'var(--expense)'):'var(--ink2)')+'"></i><div><div class="t">'+esc(l.note||'Loan')+'</div><div class="s">'+esc(dshort(l.date))+(l.acc?' · '+(lent?'from ':'into ')+esc(accName(l.acc)):' · no account linked')+(l.due?' · remind by '+esc(dshort(l.due)):'')+(over?' · <b class="exp">overdue</b>':'')+'<br>'+money(l.paid||0)+' of '+money(l.amount)+' '+(lent?'received':'paid back')+hist+'</div></div><div style="text-align:right"><div class="a '+(r>0.01?(lent?'inc':'exp'):'muted')+'">'+(r>0.01?money(r)+' left':'Settled')+'</div><button class="muted" style="font-size:12px;font-weight:700" data-act="loandel" data-id="'+l.id+'">'+(V.confirm===l.id?'Sure?':'Delete')+'</button></div></div>';
   }).join('');
   return '<div class="scrim" data-act="closesheet"></div><div class="sheet" role="dialog" aria-modal="true" aria-label="'+esc(s.person)+'"><div class="grab"></div>'+
     '<div><h3 style="overflow-wrap:anywhere">'+esc(s.person)+'</h3><div class="num '+(rem>0.01?(lent?'inc':'exp'):'muted')+'" style="font-weight:700">'+(rem>0.01?(lent?'Owes you ':'You owe ')+money(rem):'All settled')+'</div></div>'+
     '<div class="rows">'+rows+'</div>'+
     (rem>0.01?'<div class="field"><label class="label" for="p-repay">'+(lent?'Money received back (₹)':'Money you paid back (₹)')+'</label><input id="p-repay" data-bind="sheet.repay" inputmode="decimal" value="'+esc(s.repay)+'" placeholder="0"></div><div class="field"><label class="label" for="p-racc">'+(lent?'Received in':'Paid from')+'</label><select id="p-racc" data-bind="sheet.racc">'+accOpts(s.racc)+'<option value=""'+(s.racc===''?' selected':'')+'>Do not change my accounts</option></select></div><p class="err" id="sheet-err" role="alert"></p><div class="actions"><button class="btn" data-act="repay">Save</button><button class="btn ghost" data-act="settleall">Settled in full</button></div>':'<p class="err" id="sheet-err" role="alert"></p>')+
-    '<div class="actions"><button class="btn ghost" data-act="loanmore">Add another loan</button><button class="btn ghost" data-act="closesheet">Close</button></div></div>';
+    '<div class="actions"><button class="btn ghost" data-act="loanmore">Add another loan</button><button class="btn ghost" data-act="closesheet">Close</button></div>'+
+    '<button class="btn danger block" data-act="persondel">'+(V.confirm==='persondel'?'Tap again to delete everything for '+esc(s.person):'Delete all loans with '+esc(s.person))+'</button></div>';
 }
 /* ---------- monthly repeats ---------- */
 function runRecurring(){
@@ -956,6 +957,21 @@ var A={
     var gone=S.loans.filter(function(l){return l.id===el.dataset.id;})[0];
     S.loans=S.loans.filter(function(l){return l.id!==el.dataset.id;});V.confirm=null;save();renderApp();V.sheet.noFocus=true;renderSheet();
     toast('Loan deleted',function(){if(gone)S.loans.push(gone);save();closeSheet();renderApp();toast('Loan restored');});
+  },
+  paydel:function(el){
+    if(V.confirm!==el.dataset.p){V.confirm=el.dataset.p;V.sheet.noFocus=true;renderSheet();return;}
+    var l=S.loans.filter(function(x){return x.id===el.dataset.l;})[0],p=l&&(l.pays||[]).filter(function(x){return x.id===el.dataset.p;})[0];
+    V.confirm=null;if(!l||!p)return;
+    l.pays=l.pays.filter(function(x){return x.id!==p.id;});l.paid=round2(Math.max(0,(l.paid||0)-p.amt));
+    save();renderApp();V.sheet.noFocus=true;renderSheet();
+    toast('Repayment removed',function(){l.pays.push(p);l.paid=round2((l.paid||0)+p.amt);save();renderApp();if(V.sheet&&V.sheet.kind==='person'){V.sheet.noFocus=true;renderSheet();}toast('Repayment restored');});
+  },
+  persondel:function(){
+    if(V.confirm!=='persondel'){V.confirm='persondel';V.sheet.noFocus=true;renderSheet();return;}
+    var s=V.sheet,gone=personLoans(s.dir,s.person);
+    S.loans=S.loans.filter(function(l){return !(l.dir===s.dir&&l.person.toLowerCase()===s.person.toLowerCase());});
+    V.confirm=null;save();closeSheet();renderApp();
+    toast('Deleted loans with '+s.person,function(){gone.forEach(function(l){S.loans.push(l);});save();renderApp();toast('Loans restored');});
   },
   loanmore:function(){var s=V.sheet;V.sheet={kind:'loan',dir:s.dir,person:s.person,amount:'',acc:s.racc||(S.accounts[0]?S.accounts[0].id:''),note:'',date:today(),due:''};V.confirm=null;renderSheet();},
   splitnew:function(){V.tab='split';V.pTab='split';V.splitOpen=null;V.sheet={kind:'group',name:'',people:''};renderApp();renderSheet();},
