@@ -620,7 +620,7 @@ function rAccounts(){
     '<button class="btn block" data-act="acctnew">Add account</button>';
 }
 function dataCard(){
-  return '<div class="card"><h2>Your data</h2><p class="muted" style="margin:0 0 10px">Everything is saved in this browser only. Copy a backup now and then, and paste it back to restore on another device.</p>'+
+  return '<div class="card"><h2>Your data</h2>'+
     '<div class="actions"><button class="btn ghost" data-act="backup">Copy backup</button><button class="btn danger" data-act="clearall">'+(V.confirm==='clearall'?'Tap again to erase all':'Erase everything')+'</button></div>'+
     '<div class="field" style="margin-top:12px"><label class="label" for="bk">Backup text</label><textarea id="bk" readonly></textarea></div>'+
     '<div class="field" style="margin-top:12px"><label class="label" for="rs">Paste a backup to restore</label><textarea id="rs"></textarea></div>'+
@@ -631,12 +631,7 @@ function moreRow(ic,title,sub,act){
     chev.r.replace('<svg','<svg style="width:18px;height:18px;flex:none;stroke:var(--ink2);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"')+'</button>';
 }
 function rMore(){
-  var n=S.accounts.length;
-  return '<div class="card"><h2>Shortcuts</h2>'+
-    moreRow('Accounts','Accounts and balances',n+' account'+(n===1?'':'s')+', assets and liabilities','goacc')+
-    moreRow('Bills','Budget limits','Set a monthly limit for each category','gobudget')+
-    moreRow('Loan','Loans','Money you lent or borrowed','goloans')+
-    '</div>'+repeatsCard()+passCard()+csvCard()+dataCard()+
+  return repeatsCard()+passCard()+csvCard()+dataCard()+
     '<p class="muted" style="margin:0;text-align:center;font-size:12.5px">PaisaTracker, version 2</p>';
 }
 /* ---------- split ---------- */
@@ -879,7 +874,7 @@ function csvText(){
   return rows.map(function(r){return r.map(csvField).join(',');}).join('\r\n');
 }
 function csvCard(){
-  return '<div class="card"><h2>Export to Excel</h2><p class="muted" style="margin:0 0 10px">Get every record as a CSV file. Open it in Excel, or load it into Power BI with Get Data, then Text/CSV.</p>'+
+  return '<div class="card"><h2>Export to Excel</h2>'+
     '<div class="actions"><button class="btn" data-act="exportcsv">Download CSV</button><button class="btn ghost" data-act="copycsv">Copy CSV</button></div>'+
     (V.csv?'<div class="field" style="margin-top:12px"><label class="label" for="csvbox">CSV text</label><textarea id="csvbox" readonly style="font-size:11.5px;font-family:ui-monospace,Menlo,monospace">'+esc(V.csv)+'</textarea></div>':'')+'</div>';
 }
@@ -896,7 +891,7 @@ window.addEventListener('pagehide',function(){if(!L)markSeen();});
 window.addEventListener('beforeunload',function(){if(!L)markSeen();});
 function passCard(){
   var on=!!getPin();
-  return '<div class="card"><h2>Passcode</h2><p class="muted" style="margin:0 0 10px">'+(on?'A 4-digit passcode is on. The app asks for it when you open it, and after you have been away for 30 seconds.':'Set a 4-digit passcode that the app asks for when you open it. It keeps casual eyes out. It is not bank-level security.')+'</p>'+
+  return '<div class="card"><h2>Passcode</h2>'+
     (on?'<div class="actions"><button class="btn ghost" data-act="pinchange">Change passcode</button><button class="btn danger" data-act="pinremove">Remove passcode</button></div>':'<button class="btn block" data-act="pinset">Set passcode</button>')+'</div>';
 }
 function openLock(mode,then){L={mode:mode,then:then||'',entry:'',first:'',msg:'',confirm:false};renderLock();}
