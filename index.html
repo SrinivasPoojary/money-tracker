@@ -704,6 +704,12 @@ var PINKEY='paisa-pin-v1',L=null;
 function pinHash(p){var s='paisa|'+p+'|tracker',h=5381,h2=7,i;for(i=0;i<s.length;i++)h=((h*33)^s.charCodeAt(i))>>>0;for(i=s.length-1;i>=0;i--)h2=((h2*31)+s.charCodeAt(i))>>>0;return h.toString(36)+'-'+h2.toString(36);}
 function getPin(){try{return localStorage.getItem(PINKEY)||'';}catch(e){return '';}}
 function setPin(p){try{if(p)localStorage.setItem(PINKEY,pinHash(p));else localStorage.removeItem(PINKEY);}catch(e){}}
+/* A refresh within 30 seconds of using the app does not ask for the passcode again. */
+var SEEN='paisa-seen';
+function markSeen(){try{sessionStorage.setItem(SEEN,String(Date.now()));}catch(e){}}
+function recentlySeen(){try{var t=+sessionStorage.getItem(SEEN);return !!t&&Date.now()-t<30000;}catch(e){return false;}}
+window.addEventListener('pagehide',function(){if(!L)markSeen();});
+window.addEventListener('beforeunload',function(){if(!L)markSeen();});
 function passCard(){
   var on=!!getPin();
   return '<div class="card"><h2>Passcode</h2><p class="muted" style="margin:0 0 10px">'+(on?'A 4-digit passcode is on. The app asks for it when you open it, and after you have been away for 30 seconds.':'Set a 4-digit passcode that the app asks for when you open it. It keeps casual eyes out. It is not bank-level security.')+'</p>'+
@@ -731,7 +737,7 @@ function lockDone(){
   var e=L.entry,m=L.mode;
   if(m==='unlock'||m==='verify'){
     if(pinHash(e)!==getPin()){L.entry='';L.msg='Wrong passcode. Try again.';renderLock();return;}
-    if(m==='unlock'){L=null;renderLock();return;}
+    if(m==='unlock'){L=null;markSeen();renderLock();return;}
     if(L.then==='remove'){setPin('');L=null;renderLock();renderApp();toast('Passcode removed');return;}
     L.mode='set1';L.entry='';L.msg='';renderLock();return;
   }
@@ -757,11 +763,13 @@ function renderApp(){
   var hdr='<div class="top"><div class="brand">Paisa<span>Tracker</span></div><div class="muted num" style="font-size:12px">'+new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'})+'</div></div>';
   app.innerHTML=hdr+tabs[V.tab]();
   ['home','charts','reports','split'].forEach(function(t){var b=document.getElementById('t-'+t);b.classList.toggle('on',V.tab===t);if(V.tab===t)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+  syncHistory();
 }
 function renderSheet(){
   sheetHost.innerHTML=sheetHTML();
   var f=sheetHost.querySelector('[data-autofocus]');if(f&&!V.sheet.noFocus)try{f.focus();}catch(e){}
   if(V.sheet)V.sheet.noFocus=false;
+  syncHistory();
 }
 function toast(msg,undo){
   toastHost.innerHTML='<div class="toast" role="status">'+esc(msg)+(undo?'<button class="undo" data-act="undo">Undo</button>':'')+'</div>';
@@ -777,7 +785,29 @@ function openTx(rec){
   else V.sheet={kind:'tx',id:null,type:'expense',amount:'',cat:null,acc:first,to:second,date:V.day||today(),note:''};
   V.confirm=null;renderSheet();
 }
-function closeSheet(){V.sheet=null;V.confirm=null;sheetHost.innerHTML='';}
+function closeSheet(){V.sheet=null;V.confirm=null;sheetHost.innerHTML='';syncHistory();}
+/* Back button: keep one browser history entry for every level the person has gone into,
+   so Back closes a form, leaves a split, or returns to Home before it ever leaves the app. */
+var hd=(function(){try{return (history.state&&history.state.paisa)||0;}catch(e){return 0;}})(),ignorePop=0;
+function depthNow(){return (V.sheet?1:0)+(V.tab==='split'&&V.splitOpen?1:0)+(V.tab!=='home'?1:0);}
+function syncHistory(){
+  var d=depthNow();
+  try{
+    while(hd<d){history.pushState({paisa:hd+1},'');hd++;}
+    if(hd>d){var k=hd-d;hd=d;ignorePop++;history.go(-k);}
+  }catch(e){}
+}
+function uiBack(){
+  if(L)return;
+  if(V.sheet){closeSheet();return;}
+  if(V.tab==='split'&&V.splitOpen){V.splitOpen=null;V.confirm=null;renderApp();return;}
+  if(V.tab!=='home'){V.tab='home';V.confirm=null;renderApp();window.scrollTo(0,0);}
+}
+window.addEventListener('popstate',function(){
+  try{hd=(history.state&&history.state.paisa)||0;}catch(e){hd=0;}
+  if(ignorePop>0){ignorePop--;syncHistory();return;}
+  uiBack();syncHistory();
+});
 function setPath(path,val){var p=path.split('.'),o=V;for(var i=0;i<p.length-1;i++){o=o[p[i]];if(!o)return;}o[p[p.length-1]]=val;}
 function num(v){return parseFloat(String(v==null?'':v).replace(/,/g,''));}
 function newSF(g){return {desc:'',amt:'',paid:'You',among:g.people.slice()};}
@@ -1044,11 +1074,11 @@ document.addEventListener('keydown',function(e){
 var rt;window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(function(){if(V.tab==='charts')renderApp();},150);});
 
 var nrec=runRecurring();
-if(getPin())openLock('unlock');
+if(getPin()&&!recentlySeen())openLock('unlock');
 renderApp();
 if(nrec)toast(nrec+' monthly record'+(nrec===1?'':'s')+' added');
 document.addEventListener('visibilitychange',function(){
-  if(document.hidden){V.hiddenAt=Date.now();return;}
+  if(document.hidden){V.hiddenAt=Date.now();if(!L)markSeen();return;}
   var n=runRecurring();if(n){renderApp();toast(n+' monthly record'+(n===1?'':'s')+' added');}
   if(getPin()&&!L&&V.hiddenAt&&Date.now()-V.hiddenAt>30000)openLock('unlock');
 });
